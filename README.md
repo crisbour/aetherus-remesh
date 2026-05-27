@@ -81,9 +81,8 @@ intersection, defined as the set of triangles formed by these segments.
 
 $$
 \begin{aligned}
-\mathcal{P}_{T_u \cap T_v} = \{\, S \mid S = &(p_{start}, p_{end}) \in \mathbf{T}_{u\cap
-v} = T_u \cap T_v \text{ for some } T_u \in \mathnormal{M}_u, T_v \in
-\mathnormal{M}_v \} \\
+\mathcal{P}_{T_u \cap T_v} = \{\, S \mid S = &(p_{start}, p_{end}) \in \mathbf{T}_{u\cap v} = 
+T_u \cap T_v \text{ for some } T_u \in \mathnormal{M}_u, T_v \in \mathnormal{M}_v \} \\
 &\text{where}\, p_{start}, p_{end} \in \mathbb{R}^{d}
 \end{aligned}
 $$
