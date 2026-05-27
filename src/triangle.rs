@@ -1,4 +1,4 @@
-use log::{trace, warn};
+use log::trace;
 use nalgebra::{Point3, Unit, Vector3};
 
 use crate::{Aabb, Collide,Segment};
@@ -40,6 +40,15 @@ impl Triangle {
             );
         }
         Self { verts: verts.clone(), plane_norm }
+    }
+
+    pub fn new_with_norms(verts: &[Point3<f64>; 3], norms: &[Dir3; 3]) -> Self {
+        let plane_norm = Dir3::new_normalize(
+            norms
+                .iter()
+                .fold(Vector3::zeros(), |acc, &norm| acc + norm.into_inner()),
+        );
+        Self::new_with_norm(verts, plane_norm)
     }
 
     /// Initialise the plane normal.
@@ -155,7 +164,7 @@ impl Collide<Triangle> for Triangle {
 
         // 1. Check that triangle planes are parallel
         let planes_allignment = self.plane_norm.dot(&other.plane_norm);
-        if planes_allignment.abs() < 0.999 {
+        if planes_allignment.abs() < 0.9999 {
             return false;
         }
 
@@ -178,11 +187,10 @@ impl Collide<Triangle> for Triangle {
         if self.plane_norm.dot(&cross_triangle_edge).abs() > EPS_INTERSECTION {
             false
         } else {
+            // NOTE: Coplanar triangles with intersecting bounding boxes, but not overlapping
+            // exist. I.e. Two adjacent surfaces from two different objects/meshes
             if planes_allignment > 0.0 {
-                warn!(
-                    "Triangles normals face the same way for: {:?} and {:?}",
-                    self, other
-                );
+                return false;
             }
 
             // 4. Check that either at least one vertex is inside the triangle or a cross edge
@@ -322,8 +330,20 @@ impl Collide<Aabb> for Triangle {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Once;
+
     // We implement the transformable for the triangle primitive, so we shall use this for tests.
     use super::*;
+
+    static INIT: Once = Once::new();
+    fn init_logger() {
+        INIT.call_once(|| {
+            env_logger::Builder::from_default_env()
+                .is_test(true) // don't add timestamps
+                .try_init()
+                .ok();
+        });
+    }
 
     #[test]
     fn test_triangle_aabb() {
@@ -374,6 +394,7 @@ mod tests {
 
     #[test]
     fn test_overlaping_triangles() {
+        init_logger();
         let tri1 = Triangle::new(&[
             Point3::new(0., 0., 0.),
             Point3::new(1., 0., 0.),
@@ -381,8 +402,8 @@ mod tests {
         ]);
         let tri2 = Triangle::new(&[
             Point3::new(0., 1., 0.),
-            Point3::new(1., 0., 0.),
             Point3::new(1., 1., 0.),
+            Point3::new(1., 0., 0.),
         ]);
 
         assert!(tri1.overlap(&tri2));
@@ -418,6 +439,29 @@ mod tests {
             Point3::new(1., 0., 1.),
             Point3::new(1., 1., 1.),
         ]);
+        assert!(!tri1.overlap(&tri2));
+    }
+
+    #[test]
+    fn test_non_overlapping_fine_triangles() {
+        let tri1 = Triangle::new_with_norm(
+            &[
+                Point3::new(-0.01638760045170784, -0.025723399594426155, 0.10000000149011612),
+                Point3::new(-0.01577340066432953, -0.022526700049638748, 0.10000000149011612),
+                Point3::new(-0.014775699935853481, -0.023193299770355225, 0.10000000149011612),
+            ],
+            Dir3::new_normalize(Vector3::new(0.0, 0.0, 1.0))
+        );
+
+        // Not coplanar
+        let tri2 = Triangle::new_with_norm(
+            &[
+                Point3::new(-0.01674089953303337, -0.021817199885845184, 0.10000000149011612),
+                Point3::new(-0.01577340066432953, -0.022526700049638748, 0.10000000149011612),
+                Point3::new(0.0, 3.3677800440210998e-18, 0.10000000149011612),
+            ],
+            Dir3::new_normalize(Vector3::new(0.0, 0.0, 1.0))
+        );
         assert!(!tri1.overlap(&tri2));
     }
 }

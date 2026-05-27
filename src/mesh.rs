@@ -3,7 +3,7 @@ use colored::Colorize;
 
 use anyhow::Result;
 use kiddo::{Manhattan, NearestNeighbour, float::kdtree::KdTree};
-use log::{debug, info, trace};
+use log::{debug, info, trace, warn};
 use nalgebra::{Point3, Unit, Vector3};
 use obj::ObjData;
 
@@ -229,6 +229,7 @@ pub fn parse_obj(
     // Vertex deduplication, and remap the vertex idx in faces accordingly
     let verts_remap = prune_verts(&verts, &faces);
     info!("Vertices remaped: {:?}", verts_remap.len());
+    trace!("Vertices remaped: {:?}", verts_remap);
 
     (meshes, verts, norms, faces)
 }
@@ -314,7 +315,7 @@ impl Mesh {
             })
             .collect()
     }
-    pub fn invert_normal(&self) {
+    pub fn invert_normals(&self) {
         for tri in self.tris().iter_mut() {
             tri.invert_normals();
         }
@@ -449,22 +450,25 @@ impl Split<Mesh, Vec<FaceIntersection>> for Mesh {
             for (idx_tri_v, tri_v) in tri_v_union.iter() {
                 // FIXME: Would be better to have a collision tree checking here instead of
                 // brute force pairwise collision tests
-                if tri_u.tri().overlap(tri_v.tri()) {
+                if tri_u.overlap(tri_v) {
                     debug!("Intersect triangles {:?} and {:?} from meshes {:?} and {:?}",
                         idx_tri_u, idx_tri_v, self.idx, other.idx);
                     let new_intersection = tri_u.intersect(tri_v)?;
-                    assert!(
-                        !new_intersection.edges.is_empty(),
-                        "Intersection of overlapping triangles should not be empty"
-                    );
-                    intersections.push(FaceIntersection::new(
-                        *idx_tri_u,
-                        *idx_tri_v,
-                        new_intersection,
-                    ));
+                    if new_intersection.edges.is_empty() {
+                        warn!("Triangles {:?} and {:?} from meshes {:?} and {:?} overlap but do not intersect",
+                            idx_tri_u, idx_tri_v, self.idx, other.idx);
+                    } else {
+                        intersections.push(FaceIntersection::new(
+                            *idx_tri_u,
+                            *idx_tri_v,
+                            new_intersection,
+                        ));
+                    }
                 }
             }
         }
+        info!("Found {} intersecting triangle pairs between meshes {:?} and {:?}",
+            intersections.len(), self.idx, other.idx);
         Ok(intersections)
     }
 

@@ -24,7 +24,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     // Benchmark remeshing
-    let (meshes, verts, norms, faces) = parse_obj(&obj.data);
+    let (meshes, _verts, _norms, _faces) = parse_obj(&obj.data);
     c.bench_function("remesh", |b| {
         b.iter(|| {
             let result = remesh(black_box(meshes.clone()));

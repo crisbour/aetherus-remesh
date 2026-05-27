@@ -1,4 +1,4 @@
-use gungraun::{main, library_benchmark_group, library_benchmark, LibraryBenchmarkConfig};
+use gungraun::{main, library_benchmark_group, library_benchmark};
 use std::hint::black_box;
 
 use obj::Obj;
