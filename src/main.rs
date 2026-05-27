@@ -7,9 +7,9 @@ use colored::Colorize;
 use anyhow::Result;
 use obj::Obj;
 
-use mesh_splitting::mesh::parse_obj;
-use mesh_splitting::mesh::remesh;
-use mesh_splitting::Save;
+use aetherus_remesh::mesh::parse_obj;
+use aetherus_remesh::mesh::remesh;
+use aetherus_remesh::Save;
 
 fn main() -> Result<()> {
     env_logger::init();

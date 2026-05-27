@@ -2,8 +2,8 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
 
 use obj::Obj;
-use mesh_splitting::mesh::parse_obj;
-use mesh_splitting::mesh::remesh;
+use aetherus_remesh::mesh::parse_obj;
+use aetherus_remesh::mesh::remesh;
 
 fn criterion_benchmark(c: &mut Criterion) {
     // Benchmark loading

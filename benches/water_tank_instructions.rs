@@ -2,8 +2,8 @@ use gungraun::{main, library_benchmark_group, library_benchmark};
 use std::hint::black_box;
 
 use obj::Obj;
-use mesh_splitting::mesh::parse_obj;
-use mesh_splitting::mesh::remesh;
+use aetherus_remesh::mesh::parse_obj;
+use aetherus_remesh::mesh::remesh;
 
 #[library_benchmark]
 #[benches::multiple("test/WaterTank.obj", "test/Remesh.obj")]
