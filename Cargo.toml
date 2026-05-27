@@ -1,7 +1,15 @@
 [package]
 name = "aetherus-remesh"
 version = "0.4.0"
+authors = ["Cristian Bourceanu <v.c.bourceanu@smd.ed.ac.uk>"]
 edition = "2024"
+description = "Mesh splitting algorithm for co-planar intersection, used in MCRT simulation"
+repository = "https://github.com/crisbour/aetherus-remesh"
+readme = "README.md"
+license = "MIT"
+keywords = ["remesh", "obj", "MCRT"]
+categories = ["science", "simulation"]
+exclude = [".github"]
 
 [dependencies]
 anyhow = "^1.0.100"
@@ -11,8 +19,7 @@ env_logger = "^0.11.0"
 kiddo = { version = "^5.2.4", features = ["simd"] }
 log = "^0.4.29"
 nalgebra = "^0.31.*"
-#obj = "0.10.2"
-obj = { git = "https://github.com/kvark/obj", branch = "master" }
+obj = { git = "https://github.com/kvark/obj", branch = "master", version="0.10.2" }
 
 [dev-dependencies]
 assert_approx_eq = "1.1.0"
