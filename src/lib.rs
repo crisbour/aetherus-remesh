@@ -18,6 +18,7 @@ pub use segment::{Segment, SplitEdges};
 pub use triangle::Triangle;
 pub use idx_triangle::IdxTriangle;
 
+pub use obj;
 
 #[derive(Clone, Debug)]
 pub struct Aabb {
