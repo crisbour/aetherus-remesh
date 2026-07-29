@@ -567,12 +567,10 @@ pub fn remesh(mut meshes: Vec<Mesh>) -> Result<Vec<Mesh>> {
 #[cfg(test)]
 mod tests {
     use std::{io::BufReader, path::Path, sync::Once};
-    use obj::ObjData;
     use tempfile::NamedTempFile;
     use super::*;
     use crate::Inventory;
     use crate::save::Save;
-    use crate::utils::parse_obj_buf;
 
     static INIT: Once = Once::new();
     fn init_logger() {
@@ -584,9 +582,7 @@ mod tests {
         });
     }
 
-    #[test]
-    fn test_parse_obj() -> Result<()> {
-        init_logger();
+    fn get_obj_buf() -> BufReader<&'static[u8]> {
         static OBJ_STR: &'static str = "
 o Tank
 v 0 0 0
@@ -604,14 +600,16 @@ vn 0 0 -1
 f 1//2 2//2 6//2
 f 2//2 5//2 6//2
 ";
-        let mut reader = BufReader::new(OBJ_STR.as_bytes());
-        let Inventory{meshes, verts, norms, faces} = parse_obj_buf(&mut reader)?;
+        BufReader::new(OBJ_STR.as_bytes())
+    }
 
+    fn test_parsed_obj(inventory: &Inventory) -> Result<Vec<Mesh>> {
+        let Inventory{meshes, verts, norms, faces} = inventory;
         println!("Verts: {}", verts.borrow().len());
         println!("Norms: {}", norms.borrow().len());
         println!("Faces: {}", faces.borrow().len());
 
-        let resolved_meshes = remesh(meshes)?;
+        let resolved_meshes = remesh(meshes.clone()).expect("Remeshing failed");
 
         println!("Resolved Meshes: {:?}", resolved_meshes.iter().map(|m| m.polygons.clone()));
 
@@ -621,6 +619,17 @@ f 2//2 5//2 6//2
         assert_eq!(resolved_meshes[1].polygons.len(), 3, "Tank remained mesh should have 3 triangles");
         assert_eq!(resolved_meshes[2].polygons.len(), 0, "Water surface is contained within the tank surface");
 
+        Ok(resolved_meshes)
+    }
+
+    #[cfg(feature = "obj")]
+    #[test]
+    fn test_parse_obj() -> Result<()> {
+        use crate::utils::parse_obj_buf;
+        init_logger();
+        let mut reader = get_obj_buf();
+        let inventory = parse_obj_buf(&mut reader)?;
+        let resolved_meshes = test_parsed_obj(&inventory)?;
 
         // Rexport the meshes to buffer and print to screen
         let infile = NamedTempFile::new().expect("Expected Temporary file to write test spectrum");
@@ -632,6 +641,17 @@ f 2//2 5//2 6//2
         // Read the re-exported file and print to screen
         //let re_exported_str = std::fs::read_to_string(infile.path())?;
         //println!("Re-exported OBJ:\n{}", re_exported_str);
+        Ok(())
+    }
+
+    #[cfg(feature = "tobj")]
+    #[test]
+    fn test_parse_tobj() -> Result<()> {
+        use crate::utils::parse_tobj_buf;
+        init_logger();
+        let mut reader = get_obj_buf();
+        let inventory = parse_tobj_buf(&mut reader)?;
+        test_parsed_obj(&inventory)?;
 
         Ok(())
     }
