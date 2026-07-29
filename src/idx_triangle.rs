@@ -9,7 +9,7 @@ use log::{debug, trace, warn};
 use nalgebra::{Point3, Unit, Vector3};
 
 use crate::{
-    Aabb, Collide, Segment, Split, SplitEdges, Triangle, primitives::{Edge, IdxEdge, IdxIntersection, Normal, Polygon, PrimitiveIdx, Vertex}
+    aabb::Aabb, Collide, Segment, Split, SplitEdges, Triangle, primitives::{Edge, IdxEdge, IdxIntersection, Normal, Polygon, PrimitiveIdx, Vertex}
 };
 
 type Dir3 = Unit<Vector3<f64>>;
@@ -101,6 +101,11 @@ impl IdxTriangle {
             tri,
             flat,
         }
+    }
+
+    pub fn with_idx(mut self, idx: PrimitiveIdx) -> Self {
+        self.idx = idx;
+        self
     }
 
     pub fn into_global(mut self, global_idx: usize) -> Self {

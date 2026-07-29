@@ -2,12 +2,12 @@ use std::env::args;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Instant;
+use aetherus_remesh::Inventory;
 use colored::Colorize;
 
 use anyhow::Result;
-use obj::Obj;
 
-use aetherus_remesh::mesh::parse_obj;
+use aetherus_remesh::utils::parse_obj_file;
 use aetherus_remesh::mesh::remesh;
 use aetherus_remesh::Save;
 
@@ -15,14 +15,10 @@ fn main() -> Result<()> {
     env_logger::init();
 
     let obj_filepath = args().nth(1).unwrap_or("./test/WaterTank.obj".to_string());
-
-    //let obj = Obj::load("./test/Remesh.obj")?;
-    let obj = Obj::load(&obj_filepath)?;
+    let Inventory{meshes, verts, norms, faces} = parse_obj_file(Path::new(&obj_filepath))?;
+    //let (meshes, ..) = parse_obj(obj);
 
     let now = Instant::now();
-
-    let (meshes, verts, norms, faces) = parse_obj(&obj.data);
-    //let (meshes, ..) = parse_obj(obj);
 
     println!("Verts: {}", verts.borrow().len());
     println!("Norms: {}", norms.borrow().len());

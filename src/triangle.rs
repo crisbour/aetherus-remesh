@@ -1,7 +1,7 @@
 use log::trace;
 use nalgebra::{Point3, Unit, Vector3};
 
-use crate::{Aabb, Collide,Segment};
+use crate::{aabb::Aabb, Collide,Segment};
 type Dir3 = Unit<Vector3<f64>>;
 
 #[derive(Debug, Clone)]

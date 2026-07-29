@@ -1,6 +1,6 @@
 [package]
 name = "aetherus-remesh"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["Cristian Bourceanu <v.c.bourceanu@smd.ed.ac.uk>"]
 edition = "2024"
 description = "Mesh splitting algorithm for co-planar intersection, used in MCRT simulation"
@@ -16,10 +16,11 @@ anyhow = "^1.0.100"
 assert_approx_eq = "^1.1.0"
 colored = "3.1.1"
 env_logger = "^0.11.0"
-kiddo = { version = "^5.2.4", features = ["simd"] }
+kiddo = { version = "^5.3.2", features = ["simd"] }
 log = "^0.4.29"
 nalgebra = "^0.31.*"
-obj = { git = "https://github.com/kvark/obj", branch = "master", version="0.10.2" }
+obj = { git = "https://github.com/kvark/obj", branch = "master", version="0.10.2", optional = true }
+tobj = { version = "4.0.3", optional = true }
 
 [dev-dependencies]
 assert_approx_eq = "1.1.0"
@@ -29,6 +30,8 @@ tempfile = "3.27.0"
 
 [features]
 release-logging = ["log/max_level_info"]
+obj = [ "dep:obj" ]
+tobj = [ "dep:tobj" ]
 
 [[bench]]
 name = "water_tank"
@@ -37,3 +40,8 @@ harness = false
 [[bench]]
 name = "water_tank_instructions"
 harness = false
+
+[[bin]]
+name = "remesh"
+path = "src/main.rs"
+required-features = ["obj"]

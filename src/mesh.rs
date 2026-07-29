@@ -5,13 +5,11 @@ use anyhow::Result;
 use kiddo::{Manhattan, NearestNeighbour, float::kdtree::KdTree};
 use log::{debug, info, trace, warn};
 use nalgebra::{Point3, Unit, Vector3};
-use obj::ObjData;
 
 use crate::{
-    Aabb, Collide, IdxTriangle, Split, SplitEdges, primitives::{IdxEdge, IdxIntersection, Normal, PrimitiveIdx, Vertex}
+    aabb::Aabb, Collide, Dir3, IdxTriangle, Split, SplitEdges, primitives::{IdxEdge, IdxIntersection, PrimitiveIdx, Vertex}
 };
 
-type Dir3 = Unit<Vector3<f64>>;
 
 #[derive(Clone, Debug)]
 pub struct Verts {
@@ -118,15 +116,16 @@ impl Faces {
     //    self.faces.borrow_mut().resize(current_size + size, IdxTriangle::default());
     //}
     pub fn allocate(&self, tri: IdxTriangle) -> PrimitiveIdx {
-        let idx = self.faces.borrow().len();
-        self.faces.borrow_mut().push(tri);
-        PrimitiveIdx::Global(idx)
+        let idx = PrimitiveIdx::Global(self.faces.borrow().len());
+        self.faces.borrow_mut().push(tri.with_idx(idx));
+        idx
     }
     pub fn allocate_iter(&self, tris: impl IntoIterator<Item=IdxTriangle>) -> Vec<PrimitiveIdx> {
         let base_idx = self.faces.borrow().len();
         tris.into_iter().enumerate().map(|(i, tri)| {
-            self.faces.borrow_mut().push(tri);
-            PrimitiveIdx::Global(base_idx + i)
+            let idx = PrimitiveIdx::Global(base_idx + i);
+            self.faces.borrow_mut().push(tri.with_idx(idx));
+            idx
         }).collect()
     }
     pub fn remap(&self, idx_rename: &BTreeMap<usize, usize>) {
@@ -142,108 +141,17 @@ impl Faces {
     }
 }
 
-pub fn parse_obj(
-    obj_data: &ObjData,
-) -> (Vec<Mesh>, Verts, Norms, Faces) {
-    let verts = Verts::with_capacity(obj_data.position.len());
-    let norms = Norms::with_capacity(obj_data.normal.len());
-    let faces = Faces::new();
-
-    let allocated_verts_idx = verts.allocate_iter(
-        obj_data
-        .position
-        .iter()
-        .map(|vs| {
-            let vs_f64: [f64; 3] = vs.map(|v| v as f64);
-            Point3::new(vs_f64[0], vs_f64[1], vs_f64[2])
-        })
-    );
-    debug!("Allocated verts idx: {:?}", allocated_verts_idx);
-
-    let allocated_norms_idx = norms.allocate_iter(
-        obj_data
-        .normal
-        .iter()
-        .map(|vs| {
-            let vs_f64: [f64; 3] = vs.map(|v| v as f64);
-            Dir3::new_normalize(Vector3::new(vs_f64[0], vs_f64[1], vs_f64[2]))
-        })
-    );
-
-    debug!("Allocated norms idx: {:?}", allocated_norms_idx);
-
-    let meshes =
-        obj_data
-        .objects
-        .iter()
-        .enumerate()
-        .map(|(idx, obj)| {
-            // NOTE: Collapse groups from an object
-            let obj_faces: Vec<_> = obj
-                .groups
-                .iter()
-                .flat_map(|group| {
-                    group.polys.iter().map(|poly| {
-                        let tri_verts: [Vertex; 3] = poly
-                            .0
-                            .iter()
-                            .map(|idx_tuple| idx_tuple.0)
-                            .map(|idx| Vertex::new(idx, &verts.borrow()))
-                            .collect::<Vec<_>>()
-                            .try_into()
-                            .unwrap();
-                        //let t_idx = poly.0.map(|idx_tuple| idx_tuple.1);
-                        let tri_norms: Option<[Normal; 3]> = poly
-                            .0
-                            .iter()
-                            .map(|idx_tuple| idx_tuple.2)
-                            .map(|idx| idx.map(|i| Normal::new(i, &norms.borrow())))
-                            .collect::<Option<Vec<_>>>()
-                            .and_then(|v| v.try_into().ok());
-                        (tri_verts, tri_norms)
-                    })
-                })
-                .collect();
-
-            // Tag IdxTriangle with the correct idx that would be allocated to faces
-            let base_idx = faces.borrow().len();
-            let idx_tris: Vec<_> = obj_faces
-                .into_iter()
-                .enumerate()
-                .map(|(i, (tri_verts, tri_norms))| IdxTriangle::new(tri_verts, tri_norms, PrimitiveIdx::Global(base_idx + i)))
-                .collect();
-            //faces.alllocate_size(obj_faces.len());
-            let polygons = faces.allocate_iter(idx_tris);
-            debug!("Allocated faces idx for mesh {}: {:?}", obj.name, polygons);
-
-            Mesh::from_polygons(
-                obj.name.clone(),
-                PrimitiveIdx::Global(idx),
-                polygons,
-                &verts,
-                &norms,
-                &faces)
-        })
-        .collect();
-
-    // Vertex deduplication, and remap the vertex idx in faces accordingly
-    let verts_remap = prune_verts(&verts, &faces);
-    info!("Vertices remaped: {:?}", verts_remap.len());
-    trace!("Vertices remaped: {:?}", verts_remap);
-
-    (meshes, verts, norms, faces)
-}
 
 pub fn prune_verts(verts: &Verts, faces: &Faces) -> BTreeMap<usize, usize> {
     // Build k-d tree from vertices
-    let mut kdtree: KdTree<f64, usize, 3, 128, u32> = KdTree::new();
+    let mut kdtree: KdTree<f64, usize, 3, 8192, u32> = KdTree::new();
     for (idx, vert) in verts.borrow().iter().enumerate() {
         kdtree.add(&[vert.x, vert.y, vert.z], idx);
     }
     // Map PrimitiveIdx::Global(idx) -> new PrimitiveIdx::Global(idx) after vertex deduplication
-    let mut vert_rename: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut vert_remove: BTreeMap<usize, usize> = BTreeMap::new();
     for (idx, vert) in verts.borrow().iter().enumerate() {
-        if vert_rename.contains_key(&idx) {
+        if vert_remove.contains_key(&idx) {
             continue;
         }
         // FIXME: Make the distance threshold for deduplication proportional to the size of the
@@ -251,19 +159,46 @@ pub fn prune_verts(verts: &Verts, faces: &Faces) -> BTreeMap<usize, usize> {
         let search_result = kdtree.nearest_n_within::<Manhattan>(&[vert.x, vert.y, vert.z], 1e-9, NonZero::new(10).unwrap(), true);
         for &NearestNeighbour{item: dup_idx, ..} in search_result.iter() {
             if dup_idx != idx {
-                vert_rename.insert(dup_idx, idx);
+                vert_remove.insert(dup_idx, idx);
             }
         }
     }
-    faces.remap(&vert_rename);
+    info!("Vertices deduplicated: {:?}", vert_remove.len());
+    trace!("Vertices deduplicated: {:?}", vert_remove);
 
-    vert_rename
+    // Reallocate vertices, skipping the ones marked for removal, and keep track of the mapping from old idx to new idx for remapping faces
+    let mut new_verts = Vec::new();
+    let mut indices = Vec::new();
+    for (idx, vert) in verts.borrow().iter().enumerate() {
+        if vert_remove.contains_key(&idx) {
+            continue;
+        }
+        new_verts.push(*vert);
+        indices.push(idx);
+    }
+
+    *verts.borrow_mut() = Vec::new();
+    let new_indices = verts.allocate_iter(new_verts);
+
+    let verts_remap: BTreeMap<usize, usize> = indices.into_iter().zip(new_indices.into_iter())
+        .map(|(old_idx, new_idx)| {
+            (old_idx, match new_idx {
+                PrimitiveIdx::Global(idx) => idx,
+                PrimitiveIdx::Local(_) => panic!("Expected global indices for vertices after deduplication, found: {:?}", new_idx),
+            })
+        })
+        .collect();
+
+    faces.remap(&verts_remap);
+
+    vert_remove
 }
 
 #[derive(Clone, Debug)]
 pub struct Mesh {
     /// List of indexes pointing to the polygons in the list of shapes
     pub name: String,
+    pub mat_name: Option<String>,
     pub idx: PrimitiveIdx,
     pub polygons: Vec<PrimitiveIdx>,
     pub verts: Verts,
@@ -275,7 +210,7 @@ pub struct Mesh {
 impl Mesh {
     pub fn new(name: String, idx: PrimitiveIdx, verts: &Verts, norms: &Norms, faces: &Faces) -> Self {
         let aabb = Aabb::null();
-        Self { name, idx, polygons: Vec::new(), verts: verts.clone(), norms: norms.clone(), faces: faces.clone(), aabb }
+        Self { name, mat_name: None, idx, polygons: Vec::new(), verts: verts.clone(), norms: norms.clone(), faces: faces.clone(), aabb }
     }
     pub fn from_polygons(name: String, idx: PrimitiveIdx, polygons: Vec<PrimitiveIdx>, verts: &Verts, norms: &Norms, faces: &Faces) -> Self {
         let mut mesh = Self::new(name, idx, verts, norms, faces);
@@ -290,6 +225,12 @@ impl Mesh {
         mesh.aabb = aabb;
         mesh
     }
+
+    pub fn with_material(mut self, mat_name: Option<String>) -> Self {
+        self.mat_name = mat_name;
+        self
+    }
+
     pub fn push(&mut self, new_tris: Vec<IdxTriangle>) {
         let current_size = self.faces.borrow().len();
         for tri in new_tris.iter() {
@@ -486,6 +427,7 @@ impl Split<Mesh, Vec<FaceIntersection>> for Mesh {
 
         let mut new_mesh = Mesh {
             name: self.name.clone(),
+            mat_name: None,
             idx: self.idx,
             polygons: Vec::new(),
             verts: self.verts.clone(),
@@ -597,6 +539,7 @@ pub fn remesh(mut meshes: Vec<Mesh>) -> Result<Vec<Mesh>> {
             if !inter.is_empty() {
                 let mut inter_mesh = Mesh {
                     name: format!("{}-{}", mesh_a.name, mesh_b.name),
+                    mat_name: None,
                     idx: PrimitiveIdx::Global(idx),
                     polygons: Vec::new(),
                     verts: mesh_a.verts.clone(),
@@ -627,7 +570,9 @@ mod tests {
     use obj::ObjData;
     use tempfile::NamedTempFile;
     use super::*;
+    use crate::Inventory;
     use crate::save::Save;
+    use crate::utils::parse_obj_buf;
 
     static INIT: Once = Once::new();
     fn init_logger() {
@@ -660,8 +605,7 @@ f 1//2 2//2 6//2
 f 2//2 5//2 6//2
 ";
         let mut reader = BufReader::new(OBJ_STR.as_bytes());
-        let obj = ObjData::load_buf(&mut reader)?;
-        let (meshes, verts, norms, faces) = parse_obj(&obj);
+        let Inventory{meshes, verts, norms, faces} = parse_obj_buf(&mut reader)?;
 
         println!("Verts: {}", verts.borrow().len());
         println!("Norms: {}", norms.borrow().len());
