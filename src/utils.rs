@@ -72,6 +72,9 @@ pub fn parse_tobj(models: &Vec<tobj::Model>) -> Result<Inventory> {
         inventory.add_mesh(tris_verts, tris_norms, m.name.clone(), Some(m.name.clone()));
     }
 
+    // Vertex deduplication, and remap the vertex idx in faces accordingly
+    let _verts_remap = prune_verts(&inventory.verts, &inventory.faces);
+
     Ok(inventory)
 }
 

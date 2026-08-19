@@ -1,6 +1,6 @@
 [package]
 name = "aetherus-remesh"
-version = "0.4.4"
+version = "0.4.5"
 authors = ["Cristian Bourceanu <v.c.bourceanu@smd.ed.ac.uk>"]
 edition = "2024"
 description = "Mesh splitting algorithm for co-planar intersection, used in MCRT simulation"
